@@ -1,0 +1,16 @@
+# Środowisko wirtualne
+.venv/
+venv/
+ENV/
+
+# Pliki tymczasowe Pythona
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Pliki konfiguracyjne IDE
+.vscode/
+.idea/
+
+# Intrukcje do laboratorium
+_docs/
