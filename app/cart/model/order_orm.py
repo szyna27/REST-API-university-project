@@ -1,11 +1,10 @@
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.REST.data.database import Base
 
-
-class AssignmentBatchORM(Base):
-    __tablename__ = "assignment_batches"
+class OrderORM(Base):
+    __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     operator_id: Mapped[int] = mapped_column(
@@ -13,25 +12,25 @@ class AssignmentBatchORM(Base):
         ForeignKey("operators.id", ondelete="CASCADE"),
         nullable=False,
     )
-    assignment_number: Mapped[str] = mapped_column(
+    order_number: Mapped[str] = mapped_column(
         String,
-        nullable=False,
         unique=True,
+        nullable=False,
     )
     status: Mapped[str] = mapped_column(
         String,
-        nullable=False,
         default="PENDING",
-    )
-    students_count: Mapped[int] = mapped_column(
-        Integer,
         nullable=False,
-        default=0,
     )
-    total_ects: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0,
+    products_count: Mapped[int] = mapped_column(
+        Integer, 
+        default=0, 
+        nullable=False
+    )
+    total_price: Mapped[float] = mapped_column(
+        Numeric(10, 2), 
+        default=0.0, 
+        nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -40,7 +39,7 @@ class AssignmentBatchORM(Base):
     )
 
     items = relationship(
-        "AssignmentBatchItemORM",
+        "OrderItemORM",
         cascade="all, delete-orphan",
         lazy="selectin",
     )

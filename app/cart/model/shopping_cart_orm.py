@@ -3,8 +3,8 @@ from sqlalchemy import DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.REST.data.database import Base
 
-class AssignmentDraftORM(Base):
-    __tablename__ = "assignment_drafts"
+class ShoppingCartORM(Base):
+    __tablename__ = "shopping_carts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     operator_id: Mapped[int] = mapped_column(
@@ -24,7 +24,7 @@ class AssignmentDraftORM(Base):
     )
 
     items = relationship(
-        "AssignmentDraftItemORM",
+        "ShoppingCartItemORM",
         cascade="all, delete-orphan",
         lazy="selectin",
     )
