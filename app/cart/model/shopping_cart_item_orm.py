@@ -5,6 +5,7 @@ from app.REST.data.database import Base
 
 class ShoppingCartItemORM(Base):
     __tablename__ = "shopping_cart_items"
+    
     __table_args__ = (
         UniqueConstraint(
             "cart_id",

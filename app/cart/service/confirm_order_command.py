@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
 class ConfirmOrderCommand:
-    operator_id: int
+    def __init__(self, operator_id: int):
+        self.operator_id = operator_id

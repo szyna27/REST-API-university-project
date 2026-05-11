@@ -12,7 +12,7 @@ class OrderORM(Base):
         ForeignKey("operators.id", ondelete="CASCADE"),
         nullable=False,
     )
-    assignment_number: Mapped[str] = mapped_column(
+    order_number: Mapped[str] = mapped_column(
         String,
         unique=True,
         nullable=False,
@@ -22,8 +22,16 @@ class OrderORM(Base):
         default="PENDING",
         nullable=False,
     )
-    products_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    total_price: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0, nullable=False)
+    products_count: Mapped[int] = mapped_column(
+        Integer, 
+        default=0, 
+        nullable=False
+    )
+    total_price: Mapped[float] = mapped_column(
+        Numeric(10, 2), 
+        default=0.0, 
+        nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,

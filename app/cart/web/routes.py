@@ -5,8 +5,8 @@ from app.identity.model.operator_orm import OperatorORM
 from app.identity.service.auth_exceptions import AuthorizationError
 from app.identity.service.auth_service import get_current_operator
 from app.cart.model.cart_schema import (
-    CartItemCreate,
-    CartResponse,
+    ShoppingCartItemCreate,
+    ShoppingCartResponse,
     OrderListItemResponse,
     OrderResponse,
 )
@@ -17,16 +17,15 @@ from app.cart.service.cart_exceptions import (
 )
 from app.cart.service.cart_service import (
     add_product_to_shopping_cart,
-    get_current_shopping_cart,
     get_order_details,
-    list_operator_orders,
+    get_current_shopping_cart,
+    list_orders,
     remove_product_from_shopping_cart,
 )
 from app.cart.service.confirm_order_command import ConfirmOrderCommand
 from app.cart.service.confirm_order_handler import handle_confirm_order
 
 router = APIRouter(
-    prefix="/cart",
     tags=["Shopping Cart"],
 )
 
@@ -44,8 +43,8 @@ def get_current_operator_dependency(
         raise HTTPException(status_code=401, detail=str(e))
 
 @router.get(
-    "/draft",
-    response_model=CartResponse,
+    "/cart",
+    response_model=ShoppingCartResponse,
     status_code=status.HTTP_200_OK,
 )
 def get_shopping_cart_endpoint(
@@ -58,12 +57,12 @@ def get_shopping_cart_endpoint(
     )
 
 @router.post(
-    "/draft/items",
-    response_model=CartResponse,
+    "/cart/items",
+    response_model=ShoppingCartResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def add_cart_item_endpoint(
-    payload: CartItemCreate,
+    payload: ShoppingCartItemCreate,
     operator: OperatorORM = Depends(get_current_operator_dependency),
     db: Session = Depends(get_db),
 ):
@@ -78,8 +77,33 @@ def add_cart_item_endpoint(
     except CartConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
+@router.patch(
+    "/cart/items/{item_id}",
+    response_model=ShoppingCartResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def edit_cart_item_endpoint(
+    item_id: int = Path(..., gt=0),
+    quantity: int = Path(..., gt=0),
+    operator: OperatorORM = Depends(get_current_operator_dependency),
+    db: Session = Depends(get_db),
+):
+    try:
+        return add_product_to_shopping_cart(
+            db=db,
+            operator_id=operator.id,
+            payload=ShoppingCartItemCreate(
+                product_id=item_id,
+            ),
+            quantity=quantity,
+        )
+    except CartNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except CartConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
 @router.delete(
-    "/draft/items/{item_id}",
+    "/cart/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_cart_item_endpoint(
@@ -98,7 +122,7 @@ def delete_cart_item_endpoint(
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.post(
-    "/confirm",
+    "/cart/checkout",
     response_model=OrderResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -124,7 +148,7 @@ def list_orders_endpoint(
     operator: OperatorORM = Depends(get_current_operator_dependency),
     db: Session = Depends(get_db),
 ):
-    return list_operator_orders(
+    return list_orders(
         db=db,
         operator_id=operator.id,
     )

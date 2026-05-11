@@ -1,45 +1,75 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
-class CartItemCreate(BaseModel):
+class ShoppingCartItemCreate(BaseModel):
     product_id: int
 
-class CartProductResponse(BaseModel):
+class ShoppingCartProductResponse(BaseModel):
     id: int
     name: str
     price: float
+    quantity: int
     description: str
 
-class CartItemResponse(BaseModel):
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+class ShoppingCartItemResponse(BaseModel):
     id: int
-    product: CartProductResponse
+    product: ShoppingCartProductResponse
     created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
     
-class CartResponse(BaseModel):
-    items: list[CartItemResponse]
+class ShoppingCartResponse(BaseModel):
+    id: int
+    operator_id: int
+    items: list[ShoppingCartItemResponse]
     products_count: int
     total_price: float
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
 
 class OrderItemResponse(BaseModel):
     id: int
     product_id: int
+    product_name: str
     quantity: int
     price: float
-    created_at: datetime
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
 
 class OrderResponse(BaseModel):
     id: int
-    assignment_number: str
+    operator_id: int
+    order_number: str
     status: str
     products_count: int
     total_price: float
-    items: list[OrderItemResponse]
     created_at: datetime
+    items: list[OrderItemResponse]
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
 
 class OrderListItemResponse(BaseModel):
     id: int
-    assignment_number: str
+    order_number: str
     status: str
     products_count: int
     total_price: float
     created_at: datetime
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+    )

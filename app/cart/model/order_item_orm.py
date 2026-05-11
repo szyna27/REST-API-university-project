@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.REST.data.database import Base
 
@@ -17,10 +17,17 @@ class OrderItemORM(Base):
         ForeignKey("products.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
+    product_name: Mapped[str] = mapped_column(
+        String,
         nullable=False,
-        default=datetime.now,
     )
+    quantity: Mapped[int] = mapped_column(
+        Integer, 
+        default=1, 
+        nullable=False
+    )
+    price: Mapped[float] = mapped_column(
+        Numeric(10, 2), 
+        nullable=False
+    )
+

@@ -1,125 +1,137 @@
+from datetime import datetime
 from sqlalchemy.orm import Session
+from app.REST.data.products_repository import get_product_by_id
 from app.cart.data.cart_repository import (
-    create_shopping_cart,
+    add_shopping_cart_item,
+    delete_shopping_cart_item,
     get_cart_item_by_cart_and_product,
     get_cart_item_by_id,
-    get_order_by_id,
-    get_shopping_cart_by_operator,
-    list_orders_by_operator,
+    get_or_create_shopping_cart,
+    get_order_by_id_and_operator_id,
+    get_orders_by_operator_id,
 )
-from app.cart.model.cart_schema import CartItemCreate, CartResponse, CartItemResponse, CartProductResponse, OrderListItemResponse, OrderResponse, OrderItemResponse
-from app.cart.model.shopping_cart_item_orm import ShoppingCartItemORM
-from app.cart.service.cart_exceptions import CartConflictError, CartNotFoundError, CartValidationError
-from app.REST.data.products_repository import get_product_by_id
+from app.cart.model.shopping_cart_orm import ShoppingCartORM
+from app.cart.model.cart_schema import (
+    ShoppingCartItemCreate, 
+    ShoppingCartResponse, 
+    ShoppingCartItemResponse, 
+    OrderListItemResponse, 
+    OrderResponse,
+)
+from app.cart.service.cart_exceptions import (
+    CartConflictError, 
+    CartNotFoundError,
+)
 
-def _calculate_total_price(items: list[ShoppingCartItemORM]) -> float:
+def _calculate_total_price(shopping_cart: ShoppingCartORM) -> float:
     total = 0.0
-    for item in items:
+
+    for item in shopping_cart.items:
         if item.product is not None:
             total += float(item.product.price)
+
     return total
 
-def get_current_shopping_cart(db: Session, operator_id: int) -> CartResponse:
-    cart = get_shopping_cart_by_operator(db, operator_id)
-    if cart is None:
-        cart = create_shopping_cart(db, operator_id)
-        db.commit()
-
-    return CartResponse(
+def _build_shopping_cart_response(shopping_cart: ShoppingCartORM) -> ShoppingCartResponse:
+    return ShoppingCartResponse(
+        id=shopping_cart.id,
         items=[
-            CartItemResponse(
-                id=item.id,
-                product=CartProductResponse(
-                    id=item.product.id,
-                    name=item.product.name,
-                    price=float(item.product.price),
-                    description=item.product.description,
-                ),
-                created_at=item.created_at,
-            )
-            for item in cart.items
-            if item.product is not None
+            ShoppingCartItemResponse.model_validate(item)
+            for item in shopping_cart.items
         ],
-        products_count=len(cart.items),
-        total_price=_calculate_total_price(cart.items),
+        total_price=_calculate_total_price(shopping_cart),
+        created_at=shopping_cart.created_at,
+        updated_at=shopping_cart.updated_at,
     )
 
+def get_current_shopping_cart(
+    db: Session,
+    operator_id: int,
+) -> ShoppingCartResponse:
+    shopping_cart = get_or_create_shopping_cart(db, operator_id)
+
+    return _build_shopping_cart_response(shopping_cart)
+
 def add_product_to_shopping_cart(
-    db: Session, operator_id: int, payload: CartItemCreate
-) -> CartResponse:
+    db: Session,
+    operator_id: int,
+    payload: ShoppingCartItemCreate,
+) -> ShoppingCartResponse:
+    shopping_cart = get_or_create_shopping_cart(db, operator_id)
+
     product = get_product_by_id(db, payload.product_id)
     if product is None:
         raise CartNotFoundError("Produkt o podanym identyfikatorze nie istnieje.")
 
-    cart = get_shopping_cart_by_operator(db, operator_id)
-    if cart is None:
-        cart = create_shopping_cart(db, operator_id)
-    
     existing_item = get_cart_item_by_cart_and_product(
         db=db,
-        cart_id=cart.id,
+        cart_id=shopping_cart.id,
         product_id=payload.product_id,
     )
     if existing_item is not None:
         raise CartConflictError("Ten produkt jest już dodany do koszyka.")
 
-    new_item = ShoppingCartItemORM(
-        cart_id=cart.id,
+    add_shopping_cart_item(
+        db=db,
+        cart_id=shopping_cart.id,
         product_id=payload.product_id,
+        quantity=payload.quantity,
     )
-    db.add(new_item)
-    db.commit()
 
-    return get_current_shopping_cart(db, operator_id)
+    shopping_cart.updated_at = datetime.now()
+    db.add(shopping_cart)
+    db.commit()
+    db.refresh(shopping_cart)
+    refreshed_shopping_cart = get_or_create_shopping_cart(db, operator_id)
+    return _build_shopping_cart_response(refreshed_shopping_cart)
 
 def remove_product_from_shopping_cart(
-    db: Session, operator_id: int, item_id: int
-) -> None:
-    cart = get_shopping_cart_by_operator(db, operator_id)
-    if cart is None:
-        raise CartNotFoundError("Koszyk nie istnieje.")
+    db: Session,
+    operator_id: int,
+    item_id: int,
+) -> bool:
+    shopping_cart = get_or_create_shopping_cart(db, operator_id)
 
     item = get_cart_item_by_id(db, item_id)
-    if item is None or item.cart_id != cart.id:
-        raise CartNotFoundError("Element koszyka nie istnieje.")
+    if item is None:
+        raise CartNotFoundError("Pozycja w koszyku nie istnieje.")
 
-    db.delete(item)
+    if item.cart_id != shopping_cart.id:
+        raise CartNotFoundError("Pozycja nie należy do koszyka aktualnego operatora.")
+
+    delete_shopping_cart_item(db, item)
+    shopping_cart.updated_at = datetime.now()
+    db.add(shopping_cart)
     db.commit()
+    return True
 
-def list_operator_orders(db: Session, operator_id: int) -> list[OrderListItemResponse]:
-    orders = list_orders_by_operator(db, operator_id)
+def list_orders(
+    db: Session,
+    operator_id: int,
+) -> list[OrderListItemResponse]:
+    orders = get_orders_by_operator_id(
+        db=db,
+        operator_id=operator_id,
+    )
+
     return [
-        OrderListItemResponse(
-            id=o.id,
-            assignment_number=o.assignment_number,
-            status=o.status,
-            products_count=o.products_count,
-            total_price=float(o.total_price),
-            created_at=o.created_at,
-        )
-        for o in orders
+        OrderListItemResponse.model_validate(order)
+        for order in orders
     ]
 
-def get_order_details(db: Session, operator_id: int, order_id: int) -> OrderResponse:
-    order = get_order_by_id(db, order_id)
-    if order is None or order.operator_id != operator_id:
-        raise CartNotFoundError("Zamówienie nie zostało znalezione.")
 
-    return OrderResponse(
-        id=order.id,
-        assignment_number=order.assignment_number,
-        status=order.status,
-        products_count=order.products_count,
-        total_price=float(order.total_price),
-        items=[
-            OrderItemResponse(
-                id=item.id,
-                product_id=item.product_id,
-                quantity=item.quantity,
-                price=float(item.price),
-                created_at=item.created_at,
-            )
-            for item in order.items
-        ],
-        created_at=order.created_at,
+def get_order_details(
+    db: Session,
+    operator_id: int,
+    order_id: int,
+) -> OrderResponse:
+    order = get_order_by_id_and_operator_id(
+        db=db,
+        order_id=order_id,
+        operator_id=operator_id,
     )
+
+    if order is None:
+        raise CartNotFoundError("Zamówienie nie istnieje.")
+
+    return OrderResponse.model_validate(order)
