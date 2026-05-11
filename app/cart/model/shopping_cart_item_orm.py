@@ -3,27 +3,25 @@ from sqlalchemy import DateTime, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.REST.data.database import Base
 
-
-class AssignmentDraftItemORM(Base):
-    __tablename__ = "assignment_draft_items"
-
+class ShoppingCartItemORM(Base):
+    __tablename__ = "shopping_cart_items"
     __table_args__ = (
         UniqueConstraint(
-            "draft_id",
-            "student_id",
-            name="uq_assignment_draft_student",
+            "cart_id",
+            "product_id",
+            name="uq_shopping_cart_product",
         ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    draft_id: Mapped[int] = mapped_column(
+    cart_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("assignment_drafts.id", ondelete="CASCADE"),
+        ForeignKey("shopping_carts.id", ondelete="CASCADE"),
         nullable=False,
     )
-    student_id: Mapped[int] = mapped_column(
+    product_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("students.id", ondelete="CASCADE"),
+        ForeignKey("products.id", ondelete="CASCADE"),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -32,4 +30,4 @@ class AssignmentDraftItemORM(Base):
         default=datetime.now,
     )
 
-    student = relationship("StudentORM", lazy="joined")
+    product = relationship("ProductORM", lazy="joined")
