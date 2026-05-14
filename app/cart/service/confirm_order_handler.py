@@ -1,4 +1,4 @@
-import uuid
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.cart.data.cart_repository import (
     add_order,
@@ -14,6 +14,15 @@ from app.cart.service.cart_exceptions import CartValidationError
 from app.cart.service.confirm_order_command import ConfirmOrderCommand
 
 
+def _generate_order_number(order_id: int) -> str:
+    """
+    Generuje numer w formacie "ZAM-YYYYMMDD-000001".
+    """
+    date_part = datetime.now().strftime("%Y%m%d")
+    return f"ZAM-{date_part}-{order_id:06d}"
+
+
+
 def _get_valid_cart(
     db: Session, 
     operator_id: int
@@ -22,6 +31,13 @@ def _get_valid_cart(
     
     if not cart.items:
         raise CartValidationError("Nie można potwierdzić zamówienia. Koszyk jest pusty.")
+
+    for item in cart.items:
+        if item.product and item.product.count < item.quantity:
+            raise CartValidationError(
+                f"Produkt '{item.product.name}' ma niewystarczającą ilość w magazynie "
+                f"(dostępne: {item.product.count})."
+            )
     
     return cart
 
@@ -33,7 +49,8 @@ def _calculate_total_cart_positions(shopping_cart: ShoppingCartORM) -> int:
 def _calculate_total_price(shopping_cart: ShoppingCartORM) -> float:
     total = 0.0
     for item in shopping_cart.items:
-        total += float(item.price) * item.quantity
+        if item.product is not None:
+            total += float(item.product.price) * item.quantity
     return total
 
 
@@ -45,7 +62,7 @@ def _create_order(
 ) -> OrderORM:
     order = OrderORM(
         operator_id=operator_id,
-        order_number=str(uuid.uuid4()),
+        order_number="TEMP",
         status="CONFIRMED",
         products_count=products_count,
         total_price=total_price,
@@ -53,7 +70,7 @@ def _create_order(
 
     order = add_order(db, order)
 
-    order.order_number = uuid.uuid4().hex[:8].upper()  # Generowanie krótkiego, unikalnego numeru zamówienia
+    order.order_number = _generate_order_number(order.id)
 
     db.add(order)
     db.commit()
@@ -67,14 +84,18 @@ def _create_order_items(
     order_id: int,
     shopping_cart: ShoppingCartORM,
 ) -> None:
-    for cart_item in shopping_cart.items:
+    for item in shopping_cart.items:
         order_item = OrderItemORM(
             order_id=order_id,
-            product_id=cart_item.product_id,
-            product_name=cart_item.product.name if cart_item.product else "Unknown Product",
-            quantity=cart_item.quantity,
-            price=cart_item.price,
+            product_id=item.product_id,
+            product_name=item.product.name,
+            quantity=item.quantity,
+            price=item.product.price
         )
+        
+        if item.product:
+            item.product.count -= item.quantity
+            db.add(item.product)
 
         add_order_item(db, order_item)
 
@@ -82,16 +103,7 @@ def _create_order_items(
 def _build_order_response(
     order: OrderORM
 ) -> OrderResponse:
-    return OrderResponse(
-        id=order.id,
-        operator_id=order.operator_id,
-        order_number=order.order_number,
-        status=order.status,
-        products_count=order.products_count,
-        total_price=float(order.total_price),
-        created_at=order.created_at,
-        items=order.items,
-    )
+    return OrderResponse.model_validate(order)
 
 
 def handle_confirm_order(
@@ -112,5 +124,8 @@ def handle_confirm_order(
     _create_order_items(db, order.id, cart)
 
     clear_shopping_cart(db, cart.id)
+
+    db.commit()
+    db.refresh(order)
 
     return _build_order_response(order)

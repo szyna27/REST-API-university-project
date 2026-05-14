@@ -25,6 +25,11 @@ class ShoppingCartItemORM(Base):
         ForeignKey("products.id", ondelete="CASCADE"),
         nullable=False,
     )
+    quantity: Mapped[int] = mapped_column(
+        Integer, 
+        default=1, 
+        nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,

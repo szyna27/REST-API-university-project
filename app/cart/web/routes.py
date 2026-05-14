@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, status, Query
 from sqlalchemy.orm import Session
 from app.REST.data.database import get_db
 from app.identity.model.operator_orm import OperatorORM
@@ -6,6 +6,7 @@ from app.identity.service.auth_exceptions import AuthorizationError
 from app.identity.service.auth_service import get_current_operator
 from app.cart.model.cart_schema import (
     ShoppingCartItemCreate,
+    ShoppingCartItemUpdate,
     ShoppingCartResponse,
     OrderListItemResponse,
     OrderResponse,
@@ -17,6 +18,7 @@ from app.cart.service.cart_exceptions import (
 )
 from app.cart.service.cart_service import (
     add_product_to_shopping_cart,
+    edit_product_in_shopping_cart,
     get_order_details,
     get_current_shopping_cart,
     list_orders,
@@ -80,22 +82,20 @@ def add_cart_item_endpoint(
 @router.patch(
     "/cart/items/{item_id}",
     response_model=ShoppingCartResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
 )
 def edit_cart_item_endpoint(
+    payload: ShoppingCartItemUpdate,
     item_id: int = Path(..., gt=0),
-    quantity: int = Path(..., gt=0),
     operator: OperatorORM = Depends(get_current_operator_dependency),
     db: Session = Depends(get_db),
 ):
     try:
-        return add_product_to_shopping_cart(
+        return edit_product_in_shopping_cart(
             db=db,
             operator_id=operator.id,
-            payload=ShoppingCartItemCreate(
-                product_id=item_id,
-            ),
-            quantity=quantity,
+            item_id=item_id,
+            quantity=payload.quantity,
         )
     except CartNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
