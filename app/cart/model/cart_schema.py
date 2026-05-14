@@ -3,12 +3,15 @@ from datetime import datetime
 
 class ShoppingCartItemCreate(BaseModel):
     product_id: int
+    quantity: int = 1
+
+class ShoppingCartItemUpdate(BaseModel):
+    quantity: int
 
 class ShoppingCartProductResponse(BaseModel):
     id: int
     name: str
     price: float
-    quantity: int
     description: str
 
     model_config = ConfigDict(
@@ -17,6 +20,7 @@ class ShoppingCartProductResponse(BaseModel):
 
 class ShoppingCartItemResponse(BaseModel):
     id: int
+    quantity: int
     product: ShoppingCartProductResponse
     created_at: datetime
 

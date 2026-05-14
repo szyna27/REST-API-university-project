@@ -28,17 +28,19 @@ def _calculate_total_price(shopping_cart: ShoppingCartORM) -> float:
 
     for item in shopping_cart.items:
         if item.product is not None:
-            total += float(item.product.price)
+            total += float(item.product.price) * item.quantity
 
     return total
 
 def _build_shopping_cart_response(shopping_cart: ShoppingCartORM) -> ShoppingCartResponse:
     return ShoppingCartResponse(
         id=shopping_cart.id,
+        operator_id=shopping_cart.operator_id,
         items=[
             ShoppingCartItemResponse.model_validate(item)
             for item in shopping_cart.items
         ],
+        products_count=sum(item.quantity for item in shopping_cart.items),
         total_price=_calculate_total_price(shopping_cart),
         created_at=shopping_cart.created_at,
         updated_at=shopping_cart.updated_at,
@@ -85,6 +87,30 @@ def add_product_to_shopping_cart(
     refreshed_shopping_cart = get_or_create_shopping_cart(db, operator_id)
     return _build_shopping_cart_response(refreshed_shopping_cart)
 
+def edit_product_in_shopping_cart(
+    db: Session,
+    operator_id: int,
+    item_id: int,
+    quantity: int,
+) -> ShoppingCartResponse:
+    shopping_cart = get_or_create_shopping_cart(db, operator_id)
+
+    item = get_cart_item_by_id(db, item_id)
+    if item is None:
+        raise CartNotFoundError("Pozycja w koszyku nie istnieje.")
+
+    if item.cart_id != shopping_cart.id:
+        raise CartNotFoundError("Pozycja nie należy do koszyka aktualnego operatora.")
+
+    item.quantity = quantity
+    shopping_cart.updated_at = datetime.now()
+    db.add(item)
+    db.add(shopping_cart)
+    db.commit()
+    db.refresh(shopping_cart)
+    refreshed_shopping_cart = get_or_create_shopping_cart(db, operator_id)
+    return _build_shopping_cart_response(refreshed_shopping_cart)
+
 def remove_product_from_shopping_cart(
     db: Session,
     operator_id: int,
@@ -99,7 +125,7 @@ def remove_product_from_shopping_cart(
     if item.cart_id != shopping_cart.id:
         raise CartNotFoundError("Pozycja nie należy do koszyka aktualnego operatora.")
 
-    delete_shopping_cart_item(db, item)
+    delete_shopping_cart_item(db, item.id)
     shopping_cart.updated_at = datetime.now()
     db.add(shopping_cart)
     db.commit()

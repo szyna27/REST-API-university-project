@@ -81,9 +81,10 @@ def get_cart_item_by_id(
 def add_shopping_cart_item(
     db: Session, 
     cart_id: int, 
-    product_id: int
+    product_id: int,
+    quantity: int = 1
 ) -> ShoppingCartItemORM:
-    item = ShoppingCartItemORM(cart_id=cart_id, product_id=product_id)
+    item = ShoppingCartItemORM(cart_id=cart_id, product_id=product_id, quantity=quantity)
     db.add(item)
     db.commit()
     db.refresh(item)

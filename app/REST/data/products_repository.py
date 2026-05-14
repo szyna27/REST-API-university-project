@@ -15,6 +15,7 @@ def get_all_products(db: Session):
         .options(
             joinedload(ProductORM.category)
         )
+        .order_by(ProductORM.id)
     )
     result = db.execute(query)
     return result.unique().scalars().all()
