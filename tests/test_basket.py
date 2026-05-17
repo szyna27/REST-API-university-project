@@ -4,10 +4,44 @@ from app.notifications.model.notification_orm import NotificationORM
 from app.cart.model.order_orm import OrderORM
 from app.cart.model.order_status import OrderStatus
 
-def test_full_basket_process(client, db_session):
-    # 1. Rejestracja
+def _setup_user(client):
+    email = f"test_{uuid.uuid4().hex[:8]}@example.com"
     register_payload = {
-        "email": f"test_{uuid.uuid4().hex[:8]}@example.com",
+        "email": email,
+        "password": "Password123!",
+        "confirm_password": "Password123!",
+        "first_name": "Test",
+        "last_name": "User"
+    }
+    client.post("/api/v1/auth/register", json=register_payload)
+    client.post("/api/v1/auth/login", json={"email": email, "password": "Password123!"})
+    return email
+
+def _setup_cart(client):
+    email = _setup_user(client)
+    product_payload = {
+        "name": f"BasketProd{uuid.uuid4().hex[:8]}",
+        "price": 799.99,
+        "count": 50,
+        "description": "Integration basket product",
+        "category_id": 1
+    }
+    product_res = client.post("/api/v1/products", json=product_payload)
+    product_id = product_res.json()["id"]
+    client.post("/api/v1/cart/items", json={"product_id": product_id, "quantity": 1})
+    return email
+
+def _setup_order(client):
+    email = _setup_cart(client)
+    checkout_res = client.post("/api/v1/cart/checkout")
+    order_id = checkout_res.json()["id"]
+    return email, order_id
+
+
+def test_1_registration_and_login(client, db_session):
+    email = f"test_{uuid.uuid4().hex[:8]}@example.com"
+    register_payload = {
+        "email": email,
         "password": "Password123!",
         "confirm_password": "Password123!",
         "first_name": "Test",
@@ -16,54 +50,67 @@ def test_full_basket_process(client, db_session):
     register_res = client.post("/api/v1/auth/register", json=register_payload)
     assert register_res.status_code == 201
 
-    # 1a. Logowanie
-    login_payload = {
-        "email": register_payload["email"],
-        "password": register_payload["password"]
-    }
-    login_res = client.post("/api/v1/auth/login", json=login_payload)
+    login_res = client.post("/api/v1/auth/login", json={"email": email, "password": "Password123!"})
     assert login_res.status_code == 200
-    
-    # 2. Utworzenie produktu do koszyka
+
+def test_2_add_product_to_cart(client, db_session):
+    _setup_user(client)
     product_payload = {
-        "name": "SuperKoszyk",
+        "name": f"Prod{uuid.uuid4().hex[:8]}",
         "price": 799.99,
-        "count": 50,
-        "description": "Integration basket product",
+        "count": 10,
+        "description": "Product for cart",
         "category_id": 1
     }
     product_res = client.post("/api/v1/products", json=product_payload)
-    assert product_res.status_code == 201, product_res.json()
-    product_id = product_res.json()["id"]
+    assert product_res.status_code == 201
 
-    # 3. Dodanie produktu do koszyka
-    add_item_payload = {
-        "product_id": product_id,
-        "quantity": 2
-    }
-    add_item_res = client.post("/api/v1/cart/items", json=add_item_payload)
+    add_item_res = client.post("/api/v1/cart/items", json={"product_id": product_res.json()["id"], "quantity": 2})
     assert add_item_res.status_code == 201
-    
-    # 4. Checkout (utworzenie zamówienia)
+
+def test_3_checkout(client, db_session):
+    _setup_cart(client)
     checkout_res = client.post("/api/v1/cart/checkout")
     assert checkout_res.status_code == 201
-    checkout_data = checkout_res.json()
-    order_id = checkout_data["id"]
 
-    # 5. Zakończenie zamówienia (zmiana statusu na COMPLETED)
+def test_4_create_order(client, db_session):
+    _setup_cart(client)
+    checkout_res = client.post("/api/v1/cart/checkout")
+    checkout_data = checkout_res.json()
+    assert "id" in checkout_data
+    assert checkout_data["status"] == "PENDING"
+    
+    # Dodatkowa weryfikacja czy utworzone zamówienie istnieje
+    orders_res = client.get("/api/v1/orders")
+    assert orders_res.status_code == 200
+    assert any(o["id"] == checkout_data["id"] for o in orders_res.json())
+
+def test_5_complete_order(client, db_session):
+    email, order_id = _setup_order(client)
     idempotency_key = str(uuid.uuid4())
     complete_res = client.post(
         f"/api/v1/orders/{order_id}/complete",
         headers={"Idempotency-Key": idempotency_key}
     )
-    assert complete_res.status_code == 200, complete_res.json()
-    assert complete_res.json()["status"] == "COMPLETED"
+    assert complete_res.status_code == 200
 
-    # Weryfikacja zmiany statusu w bazie
+def test_6_status_changed_to_completed(client, db_session):
+    email, order_id = _setup_order(client)
+    idempotency_key = str(uuid.uuid4())
+    client.post(
+        f"/api/v1/orders/{order_id}/complete",
+        headers={"Idempotency-Key": idempotency_key}
+    )
     order_in_db = db_session.query(OrderORM).filter(OrderORM.id == order_id).first()
     assert order_in_db.status == OrderStatus.COMPLETED
 
-    # 6. Sprawdzenie działania Idempotency-Key (ponowne wywołanie z tym samym kluczem)
+def test_7_idempotency_key_working(client, db_session):
+    email, order_id = _setup_order(client)
+    idempotency_key = str(uuid.uuid4())
+    client.post(
+        f"/api/v1/orders/{order_id}/complete",
+        headers={"Idempotency-Key": idempotency_key}
+    )
     complete_res_again = client.post(
         f"/api/v1/orders/{order_id}/complete",
         headers={"Idempotency-Key": idempotency_key}
@@ -71,7 +118,13 @@ def test_full_basket_process(client, db_session):
     assert complete_res_again.status_code == 200
     assert complete_res_again.json()["id"] == order_id
 
-    # 7. Blokada ponownego wykonania operacji z innym kluczem dla zakończonego zamówienia
+def test_8_block_different_idempotency_key(client, db_session):
+    email, order_id = _setup_order(client)
+    idempotency_key = str(uuid.uuid4())
+    client.post(
+        f"/api/v1/orders/{order_id}/complete",
+        headers={"Idempotency-Key": idempotency_key}
+    )
     different_idempotency_key = str(uuid.uuid4())
     complete_res_diff_key = client.post(
         f"/api/v1/orders/{order_id}/complete",
@@ -79,10 +132,16 @@ def test_full_basket_process(client, db_session):
     )
     assert complete_res_diff_key.status_code == 400
 
-    # 8. Weryfikacja, że po zakończeniu zamówienia powstają powiadomienia EMAIL i PUSH
+def test_9_notifications_created(client, db_session):
+    email, order_id = _setup_order(client)
+    idempotency_key = str(uuid.uuid4())
+    client.post(
+        f"/api/v1/orders/{order_id}/complete",
+        headers={"Idempotency-Key": idempotency_key}
+    )
     notifications = db_session.query(NotificationORM).all()
     
-    email_notifications = [n for n in notifications if n.channel == "EMAIL" and register_payload["email"] in n.recipient]
+    email_notifications = [n for n in notifications if n.channel == "EMAIL" and email in n.recipient]
     push_notifications = [n for n in notifications if n.channel == "PUSH"]
 
     assert len(email_notifications) > 0, "Brak powiadomienia EMAIL o zakończeniu zamówienia"

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from ..model.category_schema import Category
 
 
@@ -26,5 +26,6 @@ class Product(BaseModel):
     description: str
     category: Category
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
+    )

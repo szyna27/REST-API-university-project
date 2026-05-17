@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class Category(BaseModel):
@@ -8,5 +8,6 @@ class Category(BaseModel):
     min_price: float
     max_price: float
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
