@@ -9,6 +9,7 @@ from app.cart.data.cart_repository import (
 from app.cart.model.cart_schema import OrderResponse
 from app.cart.model.order_item_orm import OrderItemORM
 from app.cart.model.order_orm import OrderORM
+from app.cart.model.order_status import OrderStatus
 from app.cart.model.shopping_cart_orm import ShoppingCartORM
 from app.cart.service.cart_exceptions import CartValidationError
 from app.cart.service.confirm_order_command import ConfirmOrderCommand
@@ -63,7 +64,7 @@ def _create_order(
     order = OrderORM(
         operator_id=operator_id,
         order_number="TEMP",
-        status="CONFIRMED",
+        status=OrderStatus.PENDING,
         products_count=products_count,
         total_price=total_price,
     )

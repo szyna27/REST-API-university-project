@@ -6,4 +6,7 @@ class CartConflictError(Exception):
 
 class CartValidationError(Exception):
     pass
+
+class OrderNotFoundError(Exception):
+    pass
  

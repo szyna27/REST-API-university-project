@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, status, Query
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Header, Path, status
 from sqlalchemy.orm import Session
 from app.REST.data.database import get_db
 from app.identity.model.operator_orm import OperatorORM
@@ -15,6 +15,7 @@ from app.cart.service.cart_exceptions import (
     CartConflictError,
     CartNotFoundError,
     CartValidationError,
+    OrderNotFoundError,
 )
 from app.cart.service.cart_service import (
     add_product_to_shopping_cart,
@@ -26,6 +27,8 @@ from app.cart.service.cart_service import (
 )
 from app.cart.service.confirm_order_command import ConfirmOrderCommand
 from app.cart.service.confirm_order_handler import handle_confirm_order
+from app.cart.service.complete_order_command import CompleteOrderCommand
+from app.cart.service.complete_order_handler import handle_complete_order
 
 router = APIRouter(
     tags=["Shopping Cart"],
@@ -171,3 +174,37 @@ def get_order_details_endpoint(
         )
     except CartNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    
+@router.post(
+    "/orders/{order_id}/complete",
+    response_model=OrderResponse,
+    status_code=status.HTTP_200_OK,
+)
+def complete_Order_endpoint(
+    order_id: int = Path(..., gt=0),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    operator: OperatorORM = Depends(get_current_operator_dependency),
+    db: Session = Depends(get_db),
+):
+    command = CompleteOrderCommand(
+        operator_id=operator.id,
+        order_id=order_id,
+        idempotency_key=idempotency_key,
+        ordered_by=operator.email,
+        source="API",
+        notify_email=True,
+        notify_push=True,
+        note="Przypisanie zakończone przez operatora.",
+    )
+
+    try:
+        return handle_complete_order(
+            db=db,
+            command=command,
+        )
+
+    except OrderNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    except CartValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -2,6 +2,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import Session, selectinload
 
 from app.cart.model.order_item_orm import OrderItemORM
+from app.cart.model.processed_command_orm import ProcessedCommandORM
 from app.cart.model.shopping_cart_orm import ShoppingCartORM
 from app.cart.model.shopping_cart_item_orm import ShoppingCartItemORM
 from app.cart.model.order_orm import OrderORM
@@ -170,3 +171,50 @@ def get_order_by_id_and_operator_id(
     )
     result = db.execute(query).scalars().first()
     return result
+
+
+def get_processed_command(
+    db: Session,
+    command_name: str,
+    idempotency_key: str,
+) -> ProcessedCommandORM | None:
+    query = select(ProcessedCommandORM).where(
+        ProcessedCommandORM.command_name == command_name,
+        ProcessedCommandORM.idempotency_key == idempotency_key,
+    )
+
+    result = db.execute(query)
+    return result.scalars().first()
+
+
+def add_processed_command(
+    db: Session,
+    command_name: str,
+    idempotency_key: str,
+    operator_id: int,
+) -> ProcessedCommandORM:
+    processed_command = ProcessedCommandORM(
+        command_name=command_name,
+        idempotency_key=idempotency_key,
+        operator_id=operator_id,
+    )
+
+    db.add(processed_command)
+    db.commit()
+    db.refresh(processed_command)
+
+    return processed_command
+
+
+def is_command_already_processed(
+    db: Session,
+    command_name: str,
+    idempotency_key: str,
+) -> bool:
+    processed_command = get_processed_command(
+        db=db,
+        command_name=command_name,
+        idempotency_key=idempotency_key,
+    )
+
+    return processed_command is not None
