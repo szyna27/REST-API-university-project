@@ -1,8 +1,11 @@
 import uuid
 import pytest
+import logging
 from app.notifications.model.notification_orm import NotificationORM
 from app.cart.model.order_orm import OrderORM
 from app.cart.model.order_status import OrderStatus
+
+logger = logging.getLogger(__name__)
 
 def _setup_user(client):
     email = f"test_{uuid.uuid4().hex[:8]}@example.com"
@@ -139,10 +142,14 @@ def test_9_notifications_created(client, db_session):
         f"/api/v1/orders/{order_id}/complete",
         headers={"Idempotency-Key": idempotency_key}
     )
-    notifications = db_session.query(NotificationORM).all()
+    notifications = client.get("/api/v1/notifications").json()
     
-    email_notifications = [n for n in notifications if n.channel == "EMAIL" and email in n.recipient]
-    push_notifications = [n for n in notifications if n.channel == "PUSH"]
+    email_notifications = [n for n in notifications if n['channel'] == "EMAIL" and n['recipient'] == email]
+    push_notifications = [n for n in notifications if n['channel'] == "PUSH" and n['recipient'] == "test"]
+
+    for n in email_notifications + push_notifications:
+        send_response = client.post(f"/api/v1/notifications/{n['id']}/send-now")
+        assert send_response.status_code == 200
 
     assert len(email_notifications) > 0, "Brak powiadomienia EMAIL o zakończeniu zamówienia"
     assert len(push_notifications) > 0, "Brak powiadomienia PUSH o zakończeniu zamówienia"
