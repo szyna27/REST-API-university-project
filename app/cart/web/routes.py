@@ -20,11 +20,10 @@ from app.cart.service.cart_exceptions import (
 from app.cart.service.cart_service import (
     add_product_to_shopping_cart,
     edit_product_in_shopping_cart,
-    get_order_details,
     get_current_shopping_cart,
-    list_orders,
     remove_product_from_shopping_cart,
 )
+from app.cart.service.order_query_service import list_orders, get_order_details, get_dashboard_summary
 from app.cart.service.confirm_order_command import ConfirmOrderCommand
 from app.cart.service.confirm_order_handler import handle_confirm_order
 from app.cart.service.complete_order_command import CompleteOrderCommand
@@ -157,6 +156,19 @@ def list_orders_endpoint(
     )
 
 @router.get(
+    "/orders/dashboard/summary",
+    status_code=status.HTTP_200_OK,
+)
+def get_dashboard_summary_endpoint(
+    operator: OperatorORM = Depends(get_current_operator_dependency),
+    db: Session = Depends(get_db),
+):
+    return get_dashboard_summary(
+        db=db,
+        operator_id=operator.id,
+    )
+
+@router.get(
     "/orders/{order_id}",
     response_model=OrderResponse,
     status_code=status.HTTP_200_OK,
@@ -172,7 +184,7 @@ def get_order_details_endpoint(
             operator_id=operator.id,
             order_id=order_id,
         )
-    except CartNotFoundError as e:
+    except OrderNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     
 @router.post(

@@ -149,6 +149,7 @@ def test_9_notifications_created(client, db_session):
 
     for n in email_notifications + push_notifications:
         send_response = client.post(f"/api/v1/notifications/{n['id']}/send-now")
+        print(send_response.json())
         assert send_response.status_code == 200
 
     assert len(email_notifications) > 0, "Brak powiadomienia EMAIL o zakończeniu zamówienia"

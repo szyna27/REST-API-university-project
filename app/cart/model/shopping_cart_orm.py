@@ -27,4 +27,5 @@ class ShoppingCartORM(Base):
         "ShoppingCartItemORM",
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="ShoppingCartItemORM.id",
     )

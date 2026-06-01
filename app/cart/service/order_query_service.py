@@ -1,8 +1,31 @@
 from sqlalchemy.orm import Session
 
 from app.cart.data.cart_repository import get_order_by_id_and_operator_id, get_orders_by_operator_id
-from app.cart.model.cart_schema import OrderListItemResponse, OrderResponse
+from app.cart.model.cart_schema import OrderListItemResponse, OrderResponse, OrderListItemResponse
+from app.cart.model.order_status import OrderStatus
 from app.cart.service.cart_exceptions import OrderNotFoundError
+
+def get_dashboard_summary(
+    db: Session,
+    operator_id: int,
+) -> dict:
+    orders = get_orders_by_operator_id(db, operator_id)
+
+    total_orders = len(orders)
+    pending_orders = len([o for o in orders if o.status == OrderStatus.PENDING])
+    completed_orders = len([o for o in orders if o.status == OrderStatus.COMPLETED])
+    
+    # Sort orders by creation date descending to get the last order, or assume they are returned in order.
+    # We will just take the first if it's sorted, or sort it to be sure.
+    sorted_orders = sorted(orders, key=lambda o: o.created_at, reverse=True)
+    last_order = OrderListItemResponse.model_validate(sorted_orders[0]).model_dump() if sorted_orders else None
+
+    return {
+        "total_orders": total_orders,
+        "pending_orders": pending_orders,
+        "completed_orders": completed_orders,
+        "last_order": last_order,
+    }
 
 def list_orders(
     db: Session,
@@ -21,3 +44,5 @@ def get_order_details(
 
     if order is None:
         raise OrderNotFoundError(f"Zamówienie o id {order_id} nie zostało znalezione.")
+        
+    return OrderResponse.model_validate(order)
