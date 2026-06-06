@@ -5,6 +5,10 @@ import StatusBadge from '../components/StatusBadge';
 import { apiGet } from '../api/client';
 import useCurrentOperator from '../hooks/useCurrentOperator';
 
+import LoadingState from '../components/LoadingState';
+import ErrorState from '../components/ErrorState';
+import EmptyState from '../components/EmptyState';
+
 function OrdersPage() {
     const { authLoading, authError } = useCurrentOperator();
     const [orders, setOrders] = useState([]);
@@ -32,7 +36,7 @@ function OrdersPage() {
         return (
             <main className="page">
                 <section className="card">
-                    <p>Sprawdzanie sesji...</p>
+                    <LoadingState message="Sprawdzanie sesji..." />
                 </section>
             </main>
         );
@@ -48,15 +52,15 @@ function OrdersPage() {
             <main className="orders-wrapper">
                 <h2>Historia Zamówień</h2>
 
-                {loading && <p>Ładowanie zamówień...</p>}
+                {loading && <LoadingState message="Ładowanie zamówień..." />}
 
-                {error && <div className="error-message">{error}</div>}
+                {error && <ErrorState message={error} />}
 
                 {!loading && !error && orders.length === 0 && (
-                    <div className="empty-state card">
-                        <p>Brak historii zamówień.</p>
-                        <p>Przejdź do produktów, wrzuć coś do koszyka i złóż zamówienie.</p>
-                    </div>
+                    <EmptyState 
+                        title="Brak historii zamówień." 
+                        description="Przejdź do produktów, wrzuć coś do koszyka i złóż zamówienie." 
+                    />
                 )}
 
                 {!loading && !error && orders.length > 0 && (

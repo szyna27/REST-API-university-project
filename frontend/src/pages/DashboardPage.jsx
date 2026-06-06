@@ -6,6 +6,10 @@ import { apiGet } from '../api/client';
 import useCurrentOperator from '../hooks/useCurrentOperator';
 import { LayoutDashboard } from 'lucide-react';
 
+import EmptyState from '../components/EmptyState';
+import LoadingState from '../components/LoadingState';
+import ErrorState from '../components/ErrorState';
+
 function DashboardPage() {
     const { authLoading, authError } = useCurrentOperator();
     const [summary, setSummary] = useState(null);
@@ -33,7 +37,7 @@ function DashboardPage() {
         return (
             <main className="page">
                 <section className="card">
-                    <p>Sprawdzanie sesji...</p>
+                    <LoadingState message="Sprawdzanie sesji..." />
                 </section>
             </main>
         );
@@ -52,9 +56,9 @@ function DashboardPage() {
                     <h2 style={{ margin: 0 }}>Dashboard</h2>
                 </div>
 
-                {summaryLoading && <p>Ładowanie podsumowania...</p>}
+                {summaryLoading && <LoadingState message="Ładowanie podsumowania..." />}
 
-                {summaryError && <p className="error-message">{summaryError}</p>}
+                {summaryError && <ErrorState message={summaryError} />}
 
                 {!summaryLoading && !summaryError && summary && (
                     <>
@@ -73,32 +77,41 @@ function DashboardPage() {
                                 <span>Zakończone</span>
                                 <strong>{summary.completed_orders}</strong>
                             </div>
+
+                            <div className="summary-card">
+                                <span>Anulowane</span>
+                                <strong>{summary.cancelled_orders}</strong>
+                            </div>
                         </div>
 
-                        <div className="last-order-section">
-                            <h3 style={{ marginTop: '3rem', marginBottom: '1.5rem', color: '#fff' }}>Ostatnie zamówienie</h3>
+                        <div className="recent-orders">
+                            <h3 style={{ marginTop: '3rem', marginBottom: '1.5rem', color: '#fff' }}>Ostatnie zamówienia</h3>
 
-                            {summary.last_order ? (
-                                <div className="order-card" style={{ maxWidth: '600px' }}>
-                                    <div className="order-header">
-                                        <h3>{summary.last_order.order_number}</h3>
-                                        <StatusBadge status={summary.last_order.status} />
-                                    </div>
-                                    <div className="order-info">
-                                        <p>Ilość produktów: <strong>{summary.last_order.products_count}</strong></p>
-                                        <p>Suma: <strong>{summary.last_order.total_price.toFixed(2)} PLN</strong></p>
-                                        <p>Złożono: {new Date(summary.last_order.created_at).toLocaleString()}</p>
-                                    </div>
-                                    <div className="order-actions">
-                                        <Link to={`/orders/${summary.last_order.id}`} className="btn-details">
-                                            Szczegóły
-                                        </Link>
-                                    </div>
-                                </div>
+                            {!summary.recent_orders || summary.recent_orders.length === 0 ? (
+                                <EmptyState
+                                    title="Brak ostatnich zamówień."
+                                    description="Historia ostatnich zamówień pojawi się po złożeniu pierwszego zamówienia."
+                                />
                             ) : (
-                                <div className="empty-state card" style={{ maxWidth: '600px' }}>
-                                    <p>Brak historii zamówień.</p>
-                                    <Link to="/products" className="btn" style={{ display: 'inline-block', textDecoration: 'none' }}>Przejdź do produktów</Link>
+                                <div className="orders-list">
+                                    {summary.recent_orders.map((order) => (
+                                        <div key={order.id} className="order-card" style={{ maxWidth: '600px', marginBottom: '1rem' }}>
+                                            <div className="order-header">
+                                                <h3>{order.order_number}</h3>
+                                                <StatusBadge status={order.status} />
+                                            </div>
+                                            <div className="order-info">
+                                                <p>Ilość produktów: <strong>{order.products_count}</strong></p>
+                                                <p>Suma: <strong>{order.total_price.toFixed(2)} PLN</strong></p>
+                                                <p>Złożono: {new Date(order.created_at).toLocaleString()}</p>
+                                            </div>
+                                            <div className="order-actions">
+                                                <Link to={`/orders/${order.id}`} className="btn-details">
+                                                    Szczegóły
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>

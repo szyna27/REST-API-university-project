@@ -4,8 +4,12 @@ import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import { apiGet, apiRequest } from '../api/client';
 import useCurrentOperator from '../hooks/useCurrentOperator';
-import { ArrowLeft, CheckCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
+
+import LoadingState from '../components/LoadingState';
+import ErrorState from '../components/ErrorState';
+import EmptyState from '../components/EmptyState';
 
 function OrderDetailsPage() {
     const { orderId } = useParams();
@@ -15,6 +19,7 @@ function OrderDetailsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [completeLoading, setCompleteLoading] = useState(false);
+    const [cancelLoading, setCancelLoading] = useState(false);
 
     const loadOrderDetails = async () => {
         try {
@@ -49,6 +54,33 @@ function OrderDetailsPage() {
         }
     };
 
+    const handleCancelOrder = async () => {
+        const confirmed = window.confirm(
+            "Czy na pewno chcesz anulować to zamówienie?"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setError("");
+        setCancelLoading(true);
+
+        try {
+            await apiRequest(`/orders/${orderId}/cancel`, {
+                method: "POST",
+            });
+            
+            toast.success("Zamówienie zostało anulowane.");
+            await loadOrderDetails();
+        } catch (err) {
+            setError(err.message);
+            toast.error(err.message);
+        } finally {
+            setCancelLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!authLoading && !authError) {
             loadOrderDetails();
@@ -59,7 +91,7 @@ function OrderDetailsPage() {
         return (
             <main className="page">
                 <section className="card">
-                    <p>Sprawdzanie sesji...</p>
+                    <LoadingState message="Sprawdzanie sesji..." />
                 </section>
             </main>
         );
@@ -78,14 +110,12 @@ function OrderDetailsPage() {
                     Powrót do historii
                 </Link>
 
-                {loading && <p>Ładowanie zamówienia...</p>}
+                {loading && <LoadingState message="Ładowanie zamówienia..." />}
 
-                {error && <div className="error-message">{error}</div>}
+                {error && <ErrorState message={error} />}
 
                 {!loading && !error && !order && (
-                    <div className="empty-state card">
-                        <p>Nie znaleziono takiego zamówienia.</p>
-                    </div>
+                    <EmptyState title="Brak danych" description="Nie znaleziono takiego zamówienia." />
                 )}
 
                 {!loading && !error && order && (
@@ -116,21 +146,32 @@ function OrderDetailsPage() {
                             <p>Brak przedmiotów zamówienia.</p>
                         )}
 
-                        <div className="order-actions-bar" style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem' }}>
+                        <div className="order-actions-bar" style={{ marginTop: '2rem', borderTop: '1px solid #333', paddingTop: '1.5rem', display: 'flex', gap: '1rem' }}>
                             {order.status === "PENDING" ? (
-                                <button
-                                    className="btn"
-                                    onClick={handleCompleteOrder}
-                                    disabled={completeLoading}
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', backgroundColor: '#4caf50', color: '#fff' }}
-                                >
-                                    <CheckCircle size={20} />
-                                    {completeLoading ? "Kończenie zamówienia..." : "Zakończ zamówienie"}
-                                </button>
+                                <>
+                                    <button
+                                        className="btn"
+                                        onClick={handleCompleteOrder}
+                                        disabled={completeLoading || cancelLoading}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', backgroundColor: '#4caf50', color: '#fff' }}
+                                    >
+                                        <CheckCircle size={20} />
+                                        {completeLoading ? "Kończenie..." : "Zakończ zamówienie"}
+                                    </button>
+                                    <button
+                                        className="btn"
+                                        onClick={handleCancelOrder}
+                                        disabled={completeLoading || cancelLoading}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', backgroundColor: '#f44336', color: '#fff' }}
+                                    >
+                                        <XCircle size={20} />
+                                        {cancelLoading ? "Anulowanie..." : "Anuluj zamówienie"}
+                                    </button>
+                                </>
                             ) : (
-                                <div className="info-box" style={{ padding: '1rem', backgroundColor: '#2c2c2c', borderRadius: '8px', color: '#aaa', textAlign: 'center' }}>
+                                <div className="info-box" style={{ padding: '1rem', backgroundColor: '#2c2c2c', borderRadius: '8px', color: '#aaa', textAlign: 'center', width: '100%' }}>
                                     <p style={{ margin: 0 }}>
-                                        To zamówienie ma status <strong>{order.status}</strong> i nie może zostać ponownie zakończone.
+                                        To zamówienie ma status <strong>{order.status}</strong> i nie może zostać zmodyfikowane.
                                     </p>
                                 </div>
                             )}
