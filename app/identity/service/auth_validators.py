@@ -25,7 +25,7 @@ def validate_password_strength(password: str):
 def validate_name(name: str, field_name: str):
     stripped = name.strip()
 
-    if len(stripped) < 3:
+    if len(stripped) < 2:
         raise ValidationError(f"{field_name} musi mieć co najmniej 2 znaki.")
 
     if len(stripped) > 50:

@@ -14,17 +14,21 @@ def get_dashboard_summary(
     total_orders = len(orders)
     pending_orders = len([o for o in orders if o.status == OrderStatus.PENDING])
     completed_orders = len([o for o in orders if o.status == OrderStatus.COMPLETED])
+    cancelled_orders = len([o for o in orders if o.status == OrderStatus.CANCELLED])
     
     # Sort orders by creation date descending to get the last order, or assume they are returned in order.
     # We will just take the first if it's sorted, or sort it to be sure.
     sorted_orders = sorted(orders, key=lambda o: o.created_at, reverse=True)
     last_order = OrderListItemResponse.model_validate(sorted_orders[0]).model_dump() if sorted_orders else None
+    recent_orders = [OrderListItemResponse.model_validate(o).model_dump() for o in sorted_orders[:5]]
 
     return {
         "total_orders": total_orders,
         "pending_orders": pending_orders,
         "completed_orders": completed_orders,
+        "cancelled_orders": cancelled_orders,
         "last_order": last_order,
+        "recent_orders": recent_orders,
     }
 
 def list_orders(
